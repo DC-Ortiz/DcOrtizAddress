@@ -96,11 +96,16 @@
         alert("❌ No se pudo cargar la hoja.");
       }
     }
+    function obtenerFechaLocal() {
+      const hoy = new Date();
+      hoy.setMinutes(hoy.getMinutes() - hoy.getTimezoneOffset()); // Ajusta a local
+      return hoy.toISOString().split("T")[0];
+    }
 
     function resetForm() {
       alerta.style.display = "none";
       nombreInput.value = localStorage.getItem("miNombreGuardado") || "";
-      fechaInput.value = new Date().toISOString().split("T")[0];
+      fechaInput.value = obtenerFechaLocal():
       nombreInput.disabled = false;
       fechaInput.disabled = false;
       btnActualizar.disabled = false;
@@ -127,7 +132,7 @@
       hiddenDireccion.value = dir;
       sugerencias.style.display = "none";
       const reg = registros.find(r => r["Address"] === dir);
-      const hoy = new Date().toISOString().split("T")[0];
+      const hoy = obtenerFechaLocal():
 
       if (reg) {
         nombreInput.value = reg["Name"] || localStorage.getItem("miNombreGuardado") || "";
@@ -286,7 +291,7 @@
     document.addEventListener("DOMContentLoaded", async () => {
       const nombreGuardado = localStorage.getItem("miNombreGuardado");
       if (nombreGuardado) nombreInput.value = nombreGuardado;
-      fechaInput.value = new Date().toISOString().split("T")[0];
+      fechaInput.value = obtenerFechaLocal():
       await cargarHoja();
     });
   </script>
