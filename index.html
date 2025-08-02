@@ -70,28 +70,26 @@
   </div>
 
   <script>
-    // --- ZONA HORARIA COLOMBIA (UTC-5) ---
+    // Convierte "8/1/2025" (MM/DD/YYYY) a "2025-08-01" (ISO)
+    function fechaSheetAISO(fechaSheet) {
+      if (!fechaSheet) return "";
+      const partes = fechaSheet.split("/");
+      if (partes.length !== 3) return "";
+      const mm = partes[0].padStart(2, "0");
+      const dd = partes[1].padStart(2, "0");
+      const yyyy = partes[2].length === 2 ? "20" + partes[2] : partes[2];
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    // Devuelve la fecha actual en formato YYYY-MM-DD en la zona de Bogotá (UTC-5)
     function getFechaHoyBogota() {
-      // Devuelve la fecha actual en formato YYYY-MM-DD en la zona de Bogotá (UTC-5)
       const ahora = new Date();
-      // Minutos de diferencia respecto a UTC
       const bogotaOffset = -5 * 60;
       const localOffset = ahora.getTimezoneOffset();
       const diff = bogotaOffset - localOffset;
       const bogotaDate = new Date(ahora.getTime() + diff * 60000);
       return bogotaDate.toISOString().split("T")[0];
     }
-
-    function aFechaColombia(fechaISO) {
-      if (!fechaISO) return "";
-      const date = new Date(fechaISO);
-      // Normaliza la fecha a UTC-5 sin importar el origen
-      const utc = date.getTime() + date.getTimezoneOffset() * 60000;
-      const bogota = new Date(utc - 5 * 3600000);
-      return bogota.toISOString().split("T")[0];
-    }
-
-    // --- FIN FECHA COLOMBIA ---
 
     const SHEET_ID = "1dN277eFZktV3XX4VfiG-1-kzw66RAIoISRrIAbT58S4";
     const SHEET_NAME = "Sheet1";
@@ -123,9 +121,13 @@
     function resetForm() {
       alerta.style.display = "none";
       nombreInput.value = localStorage.getItem("miNombreGuardado") || "";
-      fechaInput.value = getFechaHoyBogota(); // SIEMPRE FECHA BOGOTÁ
+      fechaInput.value = getFechaHoyBogota();
       nombreInput.disabled = false;
       fechaInput.disabled = false;
+      btnActualizar.disabled = false;
+      btnActualizar.disabled = false;
+      btnActualizar.disabled = false;
+      btnActualizar.disabled = false;
       btnActualizar.disabled = false;
     }
 
@@ -154,8 +156,7 @@
 
       if (reg) {
         nombreInput.value = reg["Name"] || localStorage.getItem("miNombreGuardado") || "";
-        // SIEMPRE mostrar la fecha normalizada a Colombia
-        fechaInput.value = reg["Date"] && !isNaN(new Date(reg["Date"])) ? aFechaColombia(reg["Date"]) : hoy;
+        fechaInput.value = reg["Date"] ? fechaSheetAISO(reg["Date"]) : hoy;
 
         if (reg["Name"] && reg["Date"]) {
           alerta.style.display = "block";
@@ -201,8 +202,7 @@
       e.preventDefault();
       const dir = buscar.value.trim();
       const nombre = nombreInput.value.trim();
-      // Normaliza la fecha del input a Colombia antes de enviar
-      const fecha = aFechaColombia(fechaInput.value);
+      const fecha = fechaInput.value;
       if (!dir || !nombre || !fecha) return alert("⚠️ Debes completar todos los campos.");
 
       try {
@@ -234,11 +234,9 @@
       }
     });
 
-    // Consulta: usar la fecha Colombia para buscar trabajos del día correcto
     document.getElementById("btnConsultar").addEventListener("click", async () => {
       const nombre = nombreInput.value.trim().toLowerCase();
-      // Normaliza fecha a Colombia
-      const fechaSeleccionada = aFechaColombia(fechaInput.value.trim());
+      const fechaSeleccionada = fechaInput.value.trim();
       if (!fechaSeleccionada) return alert("Selecciona una fecha válida");
 
       const contenedor = document.getElementById("resultadoConsulta");
@@ -255,14 +253,14 @@
 
       const resultados = registros.filter(r => {
         const nombreRegistro = (r["Name"] || "").toLowerCase().trim();
-        const fechaRegistro = aFechaColombia(r["Date"]);
+        const fechaRegistro = fechaSheetAISO(r["Date"]);
         return nombreRegistro === nombre && fechaRegistro === fechaSeleccionada;
       });
 
       if (resultados.length) {
         resultados.forEach(r => {
           const row = document.createElement("tr");
-          row.innerHTML = `<td>${r["Name"]}</td><td>${r["Address"]}</td><td>${aFechaColombia(r["Date"])}</td>`;
+          row.innerHTML = `<td>${r["Name"]}</td><td>${r["Address"]}</td><td>${fechaSheetAISO(r["Date"])}</td>`;
           tabla.appendChild(row);
         });
         contador.textContent = resultados.length;
