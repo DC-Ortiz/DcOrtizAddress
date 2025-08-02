@@ -22,18 +22,21 @@
     ⚠️ Este trabajo ya fue realizado por <span id="nombreAlerta"></span>.
   </div>
 
+  <!-- Dirección -->
   <div class="mb-2 position-relative">
     <label for="buscar">Dirección:</label>
     <input class="form-control" id="buscar" placeholder="Empieza a escribir..." autocomplete="off" required>
     <div id="sugerencias" class="suggestions"></div>
   </div>
 
+  <!-- Botones -->
   <div class="d-flex gap-2 mb-3">
     <button id="copiar" class="btn btn-secondary flex-fill">📋 Copiar</button>
     <button id="limpiar" class="btn btn-outline-secondary flex-fill">🧹 Limpiar</button>
     <button id="recargar" class="btn btn-outline-primary flex-fill" hidden>🔄 Recargar</button>
   </div>
 
+  <!-- Formulario -->
   <form id="formulario" autocomplete="off">
     <input type="hidden" name="Address" id="direccionSeleccionada" />
     <label for="nombre">Nombre:</label>
@@ -43,18 +46,16 @@
     <button type="submit" class="btn btn-success w-100 mt-3" id="btnActualizar">✅ Actualizar</button>
   </form>
 
+  <!-- Spinner -->
   <div id="spinner" class="text-center mt-3">
-    <div class="spinner-border text-primary" role="status">
-      <span class="visually-hidden">Cargando...</span>
-    </div>
-    <div>Cargando...</div>
+    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando…</span></div>
+    <div>Cargando…</div>
   </div>
 
   <hr>
+  <!-- Consulta -->
   <h5>🔎 Consultar trabajos hechos</h5>
-  <div class="input-group mb-2">
-    <button class="btn btn-info w-100" id="btnConsultar">🔍 Buscar por fecha</button>
-  </div>
+  <button class="btn btn-info w-100 mb-2" id="btnConsultar">🔍 Buscar por fecha</button>
 
   <div id="resultadoConsulta" class="border rounded p-2 bg-light">
     <div class="fw-bold mb-2">Trabajos realizados: <span id="contadorTrabajos"></span></div>
@@ -69,218 +70,182 @@
     </table>
   </div>
 
-  <script>
-    // Convierte "8/1/2025" (MM/DD/YYYY) a "2025-08-01" (ISO)
-    function fechaSheetAISO(fechaSheet) {
-      if (!fechaSheet) return "";
-      const partes = fechaSheet.split("/");
-      if (partes.length !== 3) return "";
-      const mm = partes[0].padStart(2, "0");
-      const dd = partes[1].padStart(2, "0");
-      const yyyy = partes[2].length === 2 ? "20" + partes[2] : partes[2];
-      return `${yyyy}-${mm}-${dd}`;
-    }
+<script>
+/* ---------- FECHAS ---------- */
 
-    // Devuelve la fecha actual en formato YYYY-MM-DD en la zona de Bogotá (UTC-5)
-    function getFechaHoyBogota() {
-      const ahora = new Date();
-      const bogotaOffset = -5 * 60;
-      const localOffset = ahora.getTimezoneOffset();
-      const diff = bogotaOffset - localOffset;
-      const bogotaDate = new Date(ahora.getTime() + diff * 60000);
-      return bogotaDate.toISOString().split("T")[0];
-    }
+// Convierte lo que venga de la hoja a YYYY-MM-DD
+function fechaSheetAISO(txt){
+  if(!txt) return "";
+  txt = txt.trim();
+  // 1) Ya ISO
+  if(/^\d{4}-\d{2}-\d{2}$/.test(txt)) return txt;
 
-    const SHEET_ID = "1dN277eFZktV3XX4VfiG-1-kzw66RAIoISRrIAbT58S4";
-    const SHEET_NAME = "Sheet1";
-    const JSON_URL = `https://opensheet.elk.sh/${SHEET_ID}/${SHEET_NAME}`;
-    const POST_URL = "https://script.google.com/macros/s/AKfycbz8U1L4L4lp5eFKFie9jf1Ji2dlqNUzxiz60ZOqQoHijr-L4cdLugd3IV4FFwvKVf0E/exec";
+  // 2) Con barras  (MM/DD/YYYY o DD/MM/YYYY)
+  if(/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(txt)){
+    const [p1,p2,p3]=txt.split("/");
+    let mm,dd;
+    // Si la primera parte >12, asumimos DD/MM
+    if(+p1>12){ dd=p1.padStart(2,"0"); mm=p2.padStart(2,"0"); }
+    else      { mm=p1.padStart(2,"0"); dd=p2.padStart(2,"0"); }
+    const yyyy = p3.length===2 ? "20"+p3 : p3;
+    return `${yyyy}-${mm}-${dd}`;
+  }
 
-    const buscar = document.getElementById("buscar");
-    const sugerencias = document.getElementById("sugerencias");
-    const hiddenDireccion = document.getElementById("direccionSeleccionada");
-    const nombreInput = document.getElementById("nombre");
-    const fechaInput = document.getElementById("fecha");
-    const alerta = document.getElementById("alertaModificacion");
-    const nombreAlerta = document.getElementById("nombreAlerta");
-    const btnActualizar = document.getElementById("btnActualizar");
-    const spinner = document.getElementById("spinner");
+  // 3) Con nombre de mes (01 Aug, 1 Aug 25, etc.)
+  const m = txt.match(/^(\d{1,2})\s+([A-Za-z]{3,})\.?,?\s*(\d{2,4})?$/);
+  if(m){
+    const dd = m[1].padStart(2,"0");
+    const mmm = m[2].substring(0,3).toLowerCase();
+    const map = {jan:"01",feb:"02",mar:"03",apr:"04",may:"05",jun:"06",jul:"07",
+                 aug:"08",sep:"09",oct:"10",nov:"11",dec:"12"};
+    const mm = map[mmm] || "01";
+    const yyyy = m[3] ? (m[3].length===2 ? "20"+m[3] : m[3]) : new Date().getFullYear();
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  return "";
+}
 
-    let direcciones = [], registros = [];
+// Fecha actual en Bogotá (UTC-5)  YYYY-MM-DD
+function hoyBogota(){
+  const local = new Date();
+  const diffMs = (-5*60 - local.getTimezoneOffset())*60000;
+  return new Date(local.getTime()+diffMs).toISOString().split("T")[0];
+}
 
-    async function cargarHoja() {
-      try {
-        const res = await fetch(JSON_URL);
-        registros = await res.json();
-        direcciones = [...new Set(registros.map(r => r["Address"]).filter(Boolean))].sort();
-      } catch {
-        alert("❌ No se pudo cargar la hoja.");
-      }
-    }
+/* ---------- CONSTANTES ---------- */
+const SHEET_ID   = "1dN277eFZktV3XX4VfiG-1-kzw66RAIoISRrIAbT58S4";
+const SHEET_NAME = "Sheet1";
+const JSON_URL   = `https://opensheet.elk.sh/${SHEET_ID}/${SHEET_NAME}`;
+const POST_URL   = "https://script.google.com/macros/s/AKfycbz8U1L4L4lp5eFKFie9jf1Ji2dlqNUzxiz60ZOqQoHijr-L4cdLugd3IV4FFwvKVf0E/exec";
 
-    function resetForm() {
-      alerta.style.display = "none";
-      nombreInput.value = localStorage.getItem("miNombreGuardado") || "";
-      fechaInput.value = getFechaHoyBogota();
-      nombreInput.disabled = false;
-      fechaInput.disabled = false;
-      btnActualizar.disabled = false;
-      btnActualizar.disabled = false;
-      btnActualizar.disabled = false;
-      btnActualizar.disabled = false;
-      btnActualizar.disabled = false;
-    }
+/* ---------- DOM ---------- */
+const buscar     = document.getElementById("buscar");
+const sugerencias= document.getElementById("sugerencias");
+const hiddenDir  = document.getElementById("direccionSeleccionada");
+const nombre     = document.getElementById("nombre");
+const fecha      = document.getElementById("fecha");
+const alerta     = document.getElementById("alertaModificacion");
+const nombreAlerta=document.getElementById("nombreAlerta");
+const btnAct     = document.getElementById("btnActualizar");
+const spinner    = document.getElementById("spinner");
+let direcciones=[], registros=[];
 
-    buscar.addEventListener("input", () => {
-      const q = buscar.value.toLowerCase();
-      sugerencias.innerHTML = "";
-      resetForm();
-      if (!q) return sugerencias.style.display = "none";
+/* ---------- FUNCIONES ---------- */
+async function cargarHoja(){
+  try{
+    const r=await fetch(JSON_URL);
+    registros=await r.json();
+    direcciones=[...new Set(registros.map(x=>x.Address).filter(Boolean))].sort();
+  }catch{alert("❌ No se pudo cargar la hoja.");}
+}
 
-      const filtradas = direcciones.filter(d => d.toLowerCase().includes(q));
-      filtradas.forEach(d => {
-        const div = document.createElement("div");
-        div.textContent = d;
-        div.onclick = () => seleccionarDireccion(d);
-        sugerencias.appendChild(div);
-      });
-      sugerencias.style.display = filtradas.length ? "block" : "none";
+function resetForm(){
+  alerta.style.display="none";
+  nombre.value=localStorage.getItem("miNombreGuardado")||"";
+  fecha.value=hoyBogota();
+  nombre.disabled=fecha.disabled=btnAct.disabled=false;
+}
+
+/* ---------- AUTOCOMPLETE ---------- */
+buscar.addEventListener("input",()=>{
+  const q=buscar.value.toLowerCase();
+  sugerencias.innerHTML="";
+  resetForm();
+  if(!q) return sugerencias.style.display="none";
+  direcciones.filter(d=>d.toLowerCase().includes(q)).forEach(d=>{
+    const div=document.createElement("div"); div.textContent=d;
+    div.onclick=()=>seleccionarDireccion(d);
+    sugerencias.appendChild(div);
+  });
+  sugerencias.style.display=sugerencias.children.length?"block":"none";
+});
+
+function seleccionarDireccion(dir){
+  buscar.value=dir; hiddenDir.value=dir; sugerencias.style.display="none";
+  const reg=registros.find(r=>r.Address===dir);
+  if(!reg) return;
+  nombre.value  = reg.Name || localStorage.getItem("miNombreGuardado") || "";
+  fecha.value   = reg.Date ? fechaSheetAISO(reg.Date) : hoyBogota();
+  const completado = reg.Name && reg.Date;
+  alerta.style.display = completado ? "block":"none";
+  nombreAlerta.textContent = reg.Name||"";
+  nombre.disabled = fecha.disabled = btnAct.disabled = completado;
+}
+
+/* ---------- BOTONES RÁPIDOS ---------- */
+document.getElementById("copiar").onclick = ()=> {
+  if(!buscar.value) return alert("Escribe una dirección");
+  navigator.clipboard.writeText(buscar.value).then(()=>alert("Dirección copiada ✅"));
+};
+document.getElementById("limpiar").onclick = ()=>{buscar.value=""; hiddenDir.value=""; resetForm(); buscar.focus();};
+document.getElementById("recargar").onclick = cargarHoja;
+
+/* ---------- NORMALIZAR NOMBRE ---------- */
+nombre.addEventListener("input",()=>{
+  let v=nombre.value.trimStart();
+  if(v) v=v[0].toUpperCase()+v.slice(1);
+  nombre.value=v.replace(/\s+$/,"");
+});
+nombre.addEventListener("blur",()=>{const n=nombre.value.trim(); if(n) localStorage.setItem("miNombreGuardado",n);});
+
+/* ---------- SUBMIT ---------- */
+document.getElementById("formulario").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const dir=buscar.value.trim(), nom=nombre.value.trim(), fec=fecha.value;
+  if(!dir||!nom||!fec) return alert("⚠️ Completa todos los campos.");
+
+  try{
+    spinner.style.display="block";
+    registros = await (await fetch(JSON_URL)).json();
+    if(registros.some(r=>r.Address===dir && r.Name && r.Date))
+      return alert("❌ Esta dirección ya fue registrada.");
+
+    const fd=new FormData(); fd.append("Address",dir); fd.append("Name",nom); fd.append("Date",fec);
+    const res=await fetch(POST_URL,{method:"POST",body:fd});
+    if(!res.ok) throw new Error("Error al guardar");
+    alert("✅ Información guardada.");
+    await cargarHoja(); document.getElementById("limpiar").click();
+  }catch(err){alert("❌ "+err.message);}finally{spinner.style.display="none";}
+});
+
+/* ---------- CONSULTA POR FECHA ---------- */
+document.getElementById("btnConsultar").addEventListener("click",async()=>{
+  const nom = nombre.value.trim().toLowerCase();
+  const dia = fecha.value.trim();
+  if(!dia) return alert("Selecciona una fecha válida");
+
+  const cont = document.getElementById("resultadoConsulta");
+  const tabla= document.getElementById("tablaDetalle");
+  const contador=document.getElementById("contadorTrabajos");
+  tabla.innerHTML="";
+
+  try{registros=await (await fetch(JSON_URL)).json();}catch{return alert("❌ Error al actualizar datos.");}
+
+  const res = registros.filter(r=>{
+    return (r.Name||"").toLowerCase().trim()===nom &&
+           fechaSheetAISO(r.Date)===dia;
+  });
+
+  if(res.length){
+    res.forEach(r=>{
+      const tr=document.createElement("tr");
+      tr.innerHTML=`<td>${r.Name}</td><td>${r.Address}</td><td>${fechaSheetAISO(r.Date)}</td>`;
+      tabla.appendChild(tr);
     });
+    contador.textContent=res.length;
+    cont.style.display="block";
+  }else{cont.style.display="none"; alert("No hay registros para esa fecha.");}
+});
 
-    function seleccionarDireccion(dir) {
-      buscar.value = dir;
-      hiddenDireccion.value = dir;
-      sugerencias.style.display = "none";
-      const reg = registros.find(r => r["Address"] === dir);
-      const hoy = getFechaHoyBogota();
+/* ---------- Mostrar detalle ---------- */
+function mostrarDetalle(){document.getElementById("detalleResultados").style.display="block";}
 
-      if (reg) {
-        nombreInput.value = reg["Name"] || localStorage.getItem("miNombreGuardado") || "";
-        fechaInput.value = reg["Date"] ? fechaSheetAISO(reg["Date"]) : hoy;
-
-        if (reg["Name"] && reg["Date"]) {
-          alerta.style.display = "block";
-          nombreAlerta.textContent = reg["Name"];
-          nombreInput.disabled = true;
-          fechaInput.disabled = true;
-          btnActualizar.disabled = true;
-        } else {
-          alerta.style.display = "none";
-          nombreInput.disabled = false;
-          fechaInput.disabled = false;
-          btnActualizar.disabled = false;
-        }
-      }
-    }
-
-    document.getElementById("copiar").onclick = () => {
-      if (!buscar.value) return alert("Escribe una dirección");
-      navigator.clipboard.writeText(buscar.value).then(() => alert("Dirección copiada ✅"));
-    };
-
-    document.getElementById("limpiar").onclick = () => {
-      buscar.value = "";
-      hiddenDireccion.value = "";
-      resetForm();
-      buscar.focus();
-    };
-
-    document.getElementById("recargar").onclick = cargarHoja;
-
-    nombreInput.addEventListener("input", () => {
-      let valor = nombreInput.value.trimStart();
-      if (valor.length > 0) valor = valor.charAt(0).toUpperCase() + valor.slice(1);
-      nombreInput.value = valor.replace(/\s+$/, "");
-    });
-
-    nombreInput.addEventListener("blur", () => {
-      const nombre = nombreInput.value.trim();
-      if (nombre) localStorage.setItem("miNombreGuardado", nombre);
-    });
-
-    document.getElementById("formulario").addEventListener("submit", async e => {
-      e.preventDefault();
-      const dir = buscar.value.trim();
-      const nombre = nombreInput.value.trim();
-      const fecha = fechaInput.value;
-      if (!dir || !nombre || !fecha) return alert("⚠️ Debes completar todos los campos.");
-
-      try {
-        spinner.style.display = "block";
-        const resVerif = await fetch(JSON_URL);
-        registros = await resVerif.json();
-
-        const yaExiste = registros.find(r => r["Address"] === dir && r["Name"] && r["Date"]);
-        if (yaExiste) {
-          spinner.style.display = "none";
-          return alert("❌ Esta dirección ya fue registrada por " + yaExiste["Name"]);
-        }
-
-        const datos = new FormData();
-        datos.append("Address", dir);
-        datos.append("Name", nombre);
-        datos.append("Date", fecha);
-
-        const res = await fetch(POST_URL, { method: "POST", body: datos });
-        if (!res.ok) throw new Error("Error al guardar");
-
-        alert("✅ Información guardada correctamente");
-        await cargarHoja();
-        document.getElementById("limpiar").click();
-      } catch (err) {
-        alert("❌ " + (err.message || "Error de red"));
-      } finally {
-        spinner.style.display = "none";
-      }
-    });
-
-    document.getElementById("btnConsultar").addEventListener("click", async () => {
-      const nombre = nombreInput.value.trim().toLowerCase();
-      const fechaSeleccionada = fechaInput.value.trim();
-      if (!fechaSeleccionada) return alert("Selecciona una fecha válida");
-
-      const contenedor = document.getElementById("resultadoConsulta");
-      const tabla = document.getElementById("tablaDetalle");
-      const contador = document.getElementById("contadorTrabajos");
-      tabla.innerHTML = "";
-
-      try {
-        const res = await fetch(JSON_URL);
-        registros = await res.json();
-      } catch {
-        return alert("❌ Error al actualizar los datos antes de consultar.");
-      }
-
-      const resultados = registros.filter(r => {
-        const nombreRegistro = (r["Name"] || "").toLowerCase().trim();
-        const fechaRegistro = fechaSheetAISO(r["Date"]);
-        return nombreRegistro === nombre && fechaRegistro === fechaSeleccionada;
-      });
-
-      if (resultados.length) {
-        resultados.forEach(r => {
-          const row = document.createElement("tr");
-          row.innerHTML = `<td>${r["Name"]}</td><td>${r["Address"]}</td><td>${fechaSheetAISO(r["Date"])}</td>`;
-          tabla.appendChild(row);
-        });
-        contador.textContent = resultados.length;
-        contenedor.style.display = "block";
-      } else {
-        contenedor.style.display = "none";
-        alert("No hay registros para hoy");
-      }
-    });
-
-    function mostrarDetalle() {
-      document.getElementById("detalleResultados").style.display = "block";
-    }
-
-    document.addEventListener("DOMContentLoaded", async () => {
-      const nombreGuardado = localStorage.getItem("miNombreGuardado");
-      if (nombreGuardado) nombreInput.value = nombreGuardado;
-      fechaInput.value = getFechaHoyBogota();
-      await cargarHoja();
-    });
-  </script>
+/* ---------- INICIAL ---------- */
+document.addEventListener("DOMContentLoaded",async()=>{
+  const n=localStorage.getItem("miNombreGuardado"); if(n) nombre.value=n;
+  fecha.value=hoyBogota();
+  await cargarHoja();
+});
+</script>
 </body>
 </html>
