@@ -12,7 +12,7 @@
     .suggestions div:hover { background: #f0f0f0; }
     .position-relative { position: relative; }
     #alertaModificacion, #spinner, #resultadoConsulta, #detalleResultados { display: none; }
-    #resultadoConsulta, #detalleResultados { max-height: 300px; overflow-y: auto }
+    #resultadoConsulta, #detalleResultados { max-height: 300px; overflow-y: auto; }
   </style>
 </head>
 <body>
@@ -70,10 +70,33 @@
   </div>
 
   <script>
+    // --- ZONA HORARIA COLOMBIA (UTC-5) ---
+    function getFechaHoyBogota() {
+      // Devuelve la fecha actual en formato YYYY-MM-DD en la zona de Bogotá (UTC-5)
+      const ahora = new Date();
+      // Minutos de diferencia respecto a UTC
+      const bogotaOffset = -5 * 60;
+      const localOffset = ahora.getTimezoneOffset();
+      const diff = bogotaOffset - localOffset;
+      const bogotaDate = new Date(ahora.getTime() + diff * 60000);
+      return bogotaDate.toISOString().split("T")[0];
+    }
+
+    function aFechaColombia(fechaISO) {
+      if (!fechaISO) return "";
+      const date = new Date(fechaISO);
+      // Normaliza la fecha a UTC-5 sin importar el origen
+      const utc = date.getTime() + date.getTimezoneOffset() * 60000;
+      const bogota = new Date(utc - 5 * 3600000);
+      return bogota.toISOString().split("T")[0];
+    }
+
+    // --- FIN FECHA COLOMBIA ---
+
     const SHEET_ID = "1dN277eFZktV3XX4VfiG-1-kzw66RAIoISRrIAbT58S4";
     const SHEET_NAME = "Sheet1";
     const JSON_URL = `https://opensheet.elk.sh/${SHEET_ID}/${SHEET_NAME}`;
-    const POST_URL = "https://script.google.com/macros/s/AKfycbwSAkoLB6uy4bj0SO4M1I6SJxJBPiJEXFyW7Paj4hQitEtxsLthNsZ3LlwJCuqLOWRD/exec";
+    const POST_URL = "https://script.google.com/macros/s/AKfycbz8U1L4L4lp5eFKFie9jf1Ji2dlqNUzxiz60ZOqQoHijr-L4cdLugd3IV4FFwvKVf0E/exec";
 
     const buscar = document.getElementById("buscar");
     const sugerencias = document.getElementById("sugerencias");
@@ -100,7 +123,7 @@
     function resetForm() {
       alerta.style.display = "none";
       nombreInput.value = localStorage.getItem("miNombreGuardado") || "";
-      fechaInput.value = getTexasTodayDate();
+      fechaInput.value = getFechaHoyBogota(); // SIEMPRE FECHA BOGOTÁ
       nombreInput.disabled = false;
       fechaInput.disabled = false;
       btnActualizar.disabled = false;
@@ -127,11 +150,12 @@
       hiddenDireccion.value = dir;
       sugerencias.style.display = "none";
       const reg = registros.find(r => r["Address"] === dir);
-      const hoy = getTexasTodayDate();
+      const hoy = getFechaHoyBogota();
 
       if (reg) {
         nombreInput.value = reg["Name"] || localStorage.getItem("miNombreGuardado") || "";
-        fechaInput.value = toTexasDateStringForInput(reg["Date"]) || hoy;
+        // SIEMPRE mostrar la fecha normalizada a Colombia
+        fechaInput.value = reg["Date"] && !isNaN(new Date(reg["Date"])) ? aFechaColombia(reg["Date"]) : hoy;
 
         if (reg["Name"] && reg["Date"]) {
           alerta.style.display = "block";
@@ -173,38 +197,12 @@
       if (nombre) localStorage.setItem("miNombreGuardado", nombre);
     });
 
-    // Devuelve la fecha de HOY en Texas (America/Chicago), considera DST
-    function getTexasTodayDate() {
-      const now = new Date();
-      // America/Chicago es Central Time con ajuste automático de horario de verano
-      const texasNow = new Date(now.toLocaleString("en-US", { timeZone: "America/Chicago" }));
-      return texasNow.toISOString().split('T')[0];
-    }
-
-    // Para poner la fecha exacta de Texas en el input date (YYYY-MM-DD)
-    function toTexasDateStringForInput(fechaStr) {
-      if (!fechaStr) return "";
-      let fecha = new Date(fechaStr);
-      if (isNaN(fecha)) return "";
-      // Convierte a hora local de Texas
-      const texasDate = new Date(fecha.toLocaleString("en-US", { timeZone: "America/Chicago" }));
-      return texasDate.toISOString().split('T')[0];
-    }
-
-    // Convierte cualquier fecha a "YYYY-MM-DD" en hora de Texas (para comparar)
-    function toTexasDateString(fechaStr) {
-      if (!fechaStr) return "";
-      let fecha = new Date(fechaStr);
-      if (isNaN(fecha)) return "";
-      const texasDate = new Date(fecha.toLocaleString("en-US", { timeZone: "America/Chicago" }));
-      return texasDate.toISOString().split('T')[0];
-    }
-
     document.getElementById("formulario").addEventListener("submit", async e => {
       e.preventDefault();
       const dir = buscar.value.trim();
       const nombre = nombreInput.value.trim();
-      const fecha = fechaInput.value;
+      // Normaliza la fecha del input a Colombia antes de enviar
+      const fecha = aFechaColombia(fechaInput.value);
       if (!dir || !nombre || !fecha) return alert("⚠️ Debes completar todos los campos.");
 
       try {
@@ -212,13 +210,7 @@
         const resVerif = await fetch(JSON_URL);
         registros = await resVerif.json();
 
-        // Comparación de fechas en Texas (para evitar duplicados)
-        const yaExiste = registros.find(r =>
-          r["Address"] === dir &&
-          r["Name"] &&
-          r["Date"] &&
-          toTexasDateString(r["Date"]) === toTexasDateString(fecha)
-        );
+        const yaExiste = registros.find(r => r["Address"] === dir && r["Name"] && r["Date"]);
         if (yaExiste) {
           spinner.style.display = "none";
           return alert("❌ Esta dirección ya fue registrada por " + yaExiste["Name"]);
@@ -227,7 +219,7 @@
         const datos = new FormData();
         datos.append("Address", dir);
         datos.append("Name", nombre);
-        datos.append("Date", fecha); // guarda en formato YYYY-MM-DD
+        datos.append("Date", fecha);
 
         const res = await fetch(POST_URL, { method: "POST", body: datos });
         if (!res.ok) throw new Error("Error al guardar");
@@ -242,9 +234,11 @@
       }
     });
 
+    // Consulta: usar la fecha Colombia para buscar trabajos del día correcto
     document.getElementById("btnConsultar").addEventListener("click", async () => {
       const nombre = nombreInput.value.trim().toLowerCase();
-      const fechaSeleccionada = fechaInput.value.trim();
+      // Normaliza fecha a Colombia
+      const fechaSeleccionada = aFechaColombia(fechaInput.value.trim());
       if (!fechaSeleccionada) return alert("Selecciona una fecha válida");
 
       const contenedor = document.getElementById("resultadoConsulta");
@@ -259,25 +253,23 @@
         return alert("❌ Error al actualizar los datos antes de consultar.");
       }
 
-      // Comparación SIEMPRE EN FECHA DE TEXAS
       const resultados = registros.filter(r => {
         const nombreRegistro = (r["Name"] || "").toLowerCase().trim();
-        const fechaRegistro = toTexasDateString(r["Date"]);
-        const fechaComparar = toTexasDateString(fechaSeleccionada);
-        return nombreRegistro === nombre && fechaRegistro === fechaComparar;
+        const fechaRegistro = aFechaColombia(r["Date"]);
+        return nombreRegistro === nombre && fechaRegistro === fechaSeleccionada;
       });
 
       if (resultados.length) {
         resultados.forEach(r => {
           const row = document.createElement("tr");
-          row.innerHTML = `<td>${r["Name"]}</td><td>${r["Address"]}</td><td>${toTexasDateStringForInput(r["Date"])}</td>`;
+          row.innerHTML = `<td>${r["Name"]}</td><td>${r["Address"]}</td><td>${aFechaColombia(r["Date"])}</td>`;
           tabla.appendChild(row);
         });
         contador.textContent = resultados.length;
         contenedor.style.display = "block";
       } else {
         contenedor.style.display = "none";
-        alert("No hay registros para la fecha seleccionada");
+        alert("No hay registros para hoy");
       }
     });
 
@@ -288,7 +280,7 @@
     document.addEventListener("DOMContentLoaded", async () => {
       const nombreGuardado = localStorage.getItem("miNombreGuardado");
       if (nombreGuardado) nombreInput.value = nombreGuardado;
-      fechaInput.value = getTexasTodayDate();
+      fechaInput.value = getFechaHoyBogota();
       await cargarHoja();
     });
   </script>
