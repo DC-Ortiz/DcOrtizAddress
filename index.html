@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
   <title>📋 DC Ortiz</title>
-  <meta name="viewport" content="width=480, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     body { max-width: 480px; margin: 20px auto; padding: 15px; }
@@ -13,7 +12,7 @@
     .suggestions div:hover { background: #f0f0f0; }
     .position-relative { position: relative; }
     #alertaModificacion, #spinner, #resultadoConsulta, #detalleResultados { display: none; }
-    #resultadoConsulta, #detalleResultados { max-height: 300px; overflow-y: auto; }
+    #resultadoConsulta, #detalleResultados { max-height: 300px; overflow-y: auto }
   </style>
 </head>
 <body>
@@ -71,11 +70,10 @@
   </div>
 
   <script>
-    // REEMPLAZA por tus datos reales:
     const SHEET_ID = "1dN277eFZktV3XX4VfiG-1-kzw66RAIoISRrIAbT58S4";
     const SHEET_NAME = "Sheet1";
     const JSON_URL = `https://opensheet.elk.sh/${SHEET_ID}/${SHEET_NAME}`;
-    const POST_URL = "https://script.google.com/macros/s/AKfycbzCxeKDrKgmVX--nYT8wAV6I_euPaH1Ekmkj6iKP3RMi9JbhyTlEE0V8XI59Q_0cUPo/exec";
+    const POST_URL = "https://script.google.com/macros/s/AKfycbwSAkoLB6uy4bj0SO4M1I6SJxJBPiJEXFyW7Paj4hQitEtxsLthNsZ3LlwJCuqLOWRD/exec";
 
     const buscar = document.getElementById("buscar");
     const sugerencias = document.getElementById("sugerencias");
@@ -113,6 +111,7 @@
       sugerencias.innerHTML = "";
       resetForm();
       if (!q) return sugerencias.style.display = "none";
+
       const filtradas = direcciones.filter(d => d.toLowerCase().includes(q));
       filtradas.forEach(d => {
         const div = document.createElement("div");
@@ -132,12 +131,8 @@
 
       if (reg) {
         nombreInput.value = reg["Name"] || localStorage.getItem("miNombreGuardado") || "";
-        // No cambies el año aquí, si ya viene en formato YYYY-MM-DD
-        if (reg["Date"] && /^\d{4}-\d{2}-\d{2}$/.test(reg["Date"])) {
-          fechaInput.value = reg["Date"];
-        } else {
-          fechaInput.value = hoy;
-        }
+        // Fecha siempre convertida a Texas
+        fechaInput.value = toTexasDateString(reg["Date"]) || hoy;
 
         if (reg["Name"] && reg["Date"]) {
           alerta.style.display = "block";
@@ -179,6 +174,31 @@
       if (nombre) localStorage.setItem("miNombreGuardado", nombre);
     });
 
+    // Función: normaliza y convierte cualquier fecha a YYYY-MM-DD en hora de Texas (-06:00)
+    function toTexasDateString(fechaStr) {
+      if (!fechaStr) return null;
+      // Intenta con formato ISO (2025-08-02T00:00:00-06:00)
+      let fecha = new Date(fechaStr);
+      if (isNaN(fecha)) {
+        // Si no, intenta forzar formatos tipo "MM/DD/YYYY"
+        const partes = fechaStr.split(/[\/\-]/);
+        if (partes.length === 3) {
+          // Si año es el primero: "YYYY-MM-DD"
+          if (partes[0].length === 4) fecha = new Date(`${partes[0]}-${partes[1].padStart(2, "0")}-${partes[2].padStart(2, "0")}`);
+          // Si año es el último: "DD/MM/YYYY" o "MM/DD/YYYY"
+          else fecha = new Date(`${partes[2]}-${partes[0].padStart(2, "0")}-${partes[1].padStart(2, "0")}`);
+        }
+      }
+      if (isNaN(fecha)) return null;
+
+      // Convertir a UTC, luego a hora de Texas (UTC-6)
+      // (la fecha local menos la diferencia horaria del browser, más la diferencia hasta Texas)
+      const utc = fecha.getTime() + fecha.getTimezoneOffset() * 60000;
+      const texasOffset = -6 * 60; // minutos
+      const texasDate = new Date(utc + texasOffset * 60000);
+      return texasDate.toISOString().split("T")[0];
+    }
+
     document.getElementById("formulario").addEventListener("submit", async e => {
       e.preventDefault();
       const dir = buscar.value.trim();
@@ -190,7 +210,14 @@
         spinner.style.display = "block";
         const resVerif = await fetch(JSON_URL);
         registros = await resVerif.json();
-        const yaExiste = registros.find(r => r["Address"] === dir && r["Name"] && r["Date"]);
+
+        // OJO: compara fecha en TEXAS!
+        const yaExiste = registros.find(r =>
+          r["Address"] === dir &&
+          r["Name"] &&
+          r["Date"] &&
+          toTexasDateString(r["Date"]) === toTexasDateString(fecha)
+        );
         if (yaExiste) {
           spinner.style.display = "none";
           return alert("❌ Esta dirección ya fue registrada por " + yaExiste["Name"]);
@@ -199,7 +226,7 @@
         const datos = new FormData();
         datos.append("Address", dir);
         datos.append("Name", nombre);
-        datos.append("Date", fecha);
+        datos.append("Date", fecha); // guarda en formato YYYY-MM-DD
 
         const res = await fetch(POST_URL, { method: "POST", body: datos });
         if (!res.ok) throw new Error("Error al guardar");
@@ -216,7 +243,7 @@
 
     document.getElementById("btnConsultar").addEventListener("click", async () => {
       const nombre = nombreInput.value.trim().toLowerCase();
-      const fechaSeleccionada = fechaInput.value.trim(); // formato YYYY-MM-DD
+      const fechaSeleccionada = fechaInput.value.trim();
       if (!fechaSeleccionada) return alert("Selecciona una fecha válida");
 
       const contenedor = document.getElementById("resultadoConsulta");
@@ -231,23 +258,25 @@
         return alert("❌ Error al actualizar los datos antes de consultar.");
       }
 
+      // Comparación SIEMPRE EN FECHA DE TEXAS
       const resultados = registros.filter(r => {
         const nombreRegistro = (r["Name"] || "").toLowerCase().trim();
-        // Comparar siempre usando el formato exacto YYYY-MM-DD
-        return nombreRegistro === nombre && (r["Date"] === fechaSeleccionada);
+        const fechaRegistro = toTexasDateString(r["Date"]);
+        const fechaComparar = toTexasDateString(fechaSeleccionada);
+        return nombreRegistro === nombre && fechaRegistro === fechaComparar;
       });
 
       if (resultados.length) {
         resultados.forEach(r => {
           const row = document.createElement("tr");
-          row.innerHTML = `<td>${r["Name"]}</td><td>${r["Address"]}</td><td>${r["Date"]}</td>`;
+          row.innerHTML = `<td>${r["Name"]}</td><td>${r["Address"]}</td><td>${toTexasDateString(r["Date"])}</td>`;
           tabla.appendChild(row);
         });
         contador.textContent = resultados.length;
         contenedor.style.display = "block";
       } else {
         contenedor.style.display = "none";
-        alert("No hay registros para hoy");
+        alert("No hay registros para la fecha seleccionada");
       }
     });
 
