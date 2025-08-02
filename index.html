@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
   <title>📋 DC Ortiz</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=480, initial-scale=1">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     body { max-width: 480px; margin: 20px auto; padding: 15px; }
@@ -68,211 +69,198 @@
       <tbody id="tablaDetalle"></tbody>
     </table>
   </div>
-<script>
-  const SHEET_ID = "1dN277eFZktV3XX4VfiG-1-kzw66RAIoISRrIAbT58S4";
-  const SHEET_NAME = "Sheet1";
-  const JSON_URL = `https://opensheet.elk.sh/${SHEET_ID}/${SHEET_NAME}`;
-  const POST_URL = "https://script.google.com/macros/s/AKfycbz25sQSrFeFFhb0N4S3Rp2ThFv87Otcb1dXA9kH7LjBl2RPW6HcLq55SGYu7RJnJe4S/exec`;
 
-  const buscar = document.getElementById("buscar");
-  const sugerencias = document.getElementById("sugerencias");
-  const hiddenDireccion = document.getElementById("direccionSeleccionada");
-  const nombreInput = document.getElementById("nombre");
-  const fechaInput = document.getElementById("fecha");
-  const alerta = document.getElementById("alertaModificacion");
-  const nombreAlerta = document.getElementById("nombreAlerta");
-  const btnActualizar = document.getElementById("btnActualizar");
-  const spinner = document.getElementById("spinner");
+  <script>
+    // REEMPLAZA por tus datos reales:
+    const SHEET_ID = "1dN277eFZktV3XX4VfiG-1-kzw66RAIoISRrIAbT58S4";
+    const SHEET_NAME = "Sheet1";
+    const JSON_URL = `https://opensheet.elk.sh/${SHEET_ID}/${SHEET_NAME}`;
+    const POST_URL = "https://script.google.com/macros/s/AKfycbz25sQSrFeFFhb0N4S3Rp2ThFv87Otcb1dXA9kH7LjBl2RPW6HcLq55SGYu7RJnJe4S/exec";
 
-  let direcciones = [], registros = [];
+    const buscar = document.getElementById("buscar");
+    const sugerencias = document.getElementById("sugerencias");
+    const hiddenDireccion = document.getElementById("direccionSeleccionada");
+    const nombreInput = document.getElementById("nombre");
+    const fechaInput = document.getElementById("fecha");
+    const alerta = document.getElementById("alertaModificacion");
+    const nombreAlerta = document.getElementById("nombreAlerta");
+    const btnActualizar = document.getElementById("btnActualizar");
+    const spinner = document.getElementById("spinner");
 
-  function obtenerFechaLocal() {
-    const hoy = new Date();
-    hoy.setMinutes(hoy.getMinutes() - hoy.getTimezoneOffset());
-    return hoy.toISOString().split("T")[0];
-  }
+    let direcciones = [], registros = [];
 
-  async function cargarHoja() {
-    try {
-      const res = await fetch(JSON_URL);
-      registros = await res.json();
-      direcciones = [...new Set(registros.map(r => r["Address"]).filter(Boolean))].sort();
-    } catch {
-      alert("❌ No se pudo cargar la hoja.");
-    }
-  }
-
-  function resetForm() {
-    alerta.style.display = "none";
-    nombreInput.value = localStorage.getItem("miNombreGuardado") || "";
-    fechaInput.value = obtenerFechaLocal();
-    nombreInput.disabled = false;
-    fechaInput.disabled = false;
-    btnActualizar.disabled = false;
-  }
-
-  buscar.addEventListener("input", () => {
-    const q = buscar.value.toLowerCase();
-    sugerencias.innerHTML = "";
-    resetForm();
-    if (!q) return sugerencias.style.display = "none";
-
-    const filtradas = direcciones.filter(d => d.toLowerCase().includes(q));
-    filtradas.forEach(d => {
-      const div = document.createElement("div");
-      div.textContent = d;
-      div.onclick = () => seleccionarDireccion(d);
-      sugerencias.appendChild(div);
-    });
-    sugerencias.style.display = filtradas.length ? "block" : "none";
-  });
-
-  function seleccionarDireccion(dir) {
-    buscar.value = dir;
-    hiddenDireccion.value = dir;
-    sugerencias.style.display = "none";
-    const reg = registros.find(r => r["Address"] === dir);
-    const hoy = obtenerFechaLocal();
-
-    if (reg) {
-      nombreInput.value = reg["Name"] || localStorage.getItem("miNombreGuardado") || "";
-
-      if (reg["Date"] && !isNaN(new Date(reg["Date"]))) {
-        const fechaLocal = new Date(reg["Date"]);
-        fechaLocal.setMinutes(fechaLocal.getMinutes() - fechaLocal.getTimezoneOffset());
-        fechaInput.value = fechaLocal.toISOString().split("T")[0];
-      } else {
-        fechaInput.value = hoy;
-      }
-
-      if (reg["Name"] && reg["Date"]) {
-        alerta.style.display = "block";
-        nombreAlerta.textContent = reg["Name"];
-        nombreInput.disabled = true;
-        fechaInput.disabled = true;
-        btnActualizar.disabled = true;
-      } else {
-        alerta.style.display = "none";
-        nombreInput.disabled = false;
-        fechaInput.disabled = false;
-        btnActualizar.disabled = false;
+    async function cargarHoja() {
+      try {
+        const res = await fetch(JSON_URL);
+        registros = await res.json();
+        direcciones = [...new Set(registros.map(r => r["Address"]).filter(Boolean))].sort();
+      } catch {
+        alert("❌ No se pudo cargar la hoja.");
       }
     }
-  }
 
-  document.getElementById("copiar").onclick = () => {
-    if (!buscar.value) return alert("Escribe una dirección");
-    navigator.clipboard.writeText(buscar.value).then(() => alert("Dirección copiada ✅"));
-  };
-
-  document.getElementById("limpiar").onclick = () => {
-    buscar.value = "";
-    hiddenDireccion.value = "";
-    resetForm();
-    buscar.focus();
-  };
-
-  document.getElementById("recargar").onclick = cargarHoja;
-
-  nombreInput.addEventListener("input", () => {
-    let valor = nombreInput.value.trimStart();
-    if (valor.length > 0) valor = valor.charAt(0).toUpperCase() + valor.slice(1);
-    nombreInput.value = valor.replace(/\s+$/, "");
-  });
-
-  nombreInput.addEventListener("blur", () => {
-    const nombre = nombreInput.value.trim();
-    if (nombre) localStorage.setItem("miNombreGuardado", nombre);
-  });
-
-  document.getElementById("formulario").addEventListener("submit", async e => {
-    e.preventDefault();
-    const dir = buscar.value.trim();
-    const nombre = nombreInput.value.trim();
-    const fecha = fechaInput.value;
-    if (!dir || !nombre || !fecha) return alert("⚠️ Debes completar todos los campos.");
-
-    try {
-      spinner.style.display = "block";
-      const resVerif = await fetch(JSON_URL);
-      registros = await resVerif.json();
-
-      const yaExiste = registros.find(r => r["Address"] === dir && r["Name"] && r["Date"]);
-      if (yaExiste) {
-        spinner.style.display = "none";
-        return alert("❌ Esta dirección ya fue registrada por " + yaExiste["Name"]);
-      }
-
-      const datos = new FormData();
-      datos.append("Address", dir);
-      datos.append("Name", nombre);
-      datos.append("Date", fecha);
-
-      const res = await fetch(POST_URL, { method: "POST", body: datos });
-      if (!res.ok) throw new Error("Error al guardar");
-
-      alert("✅ Información guardada correctamente");
-      await cargarHoja();
-      document.getElementById("limpiar").click();
-    } catch (err) {
-      alert("❌ " + (err.message || "Error de red"));
-    } finally {
-      spinner.style.display = "none";
-    }
-  });
-
-  document.getElementById("btnConsultar").addEventListener("click", async () => {
-    const nombre = nombreInput.value.trim().toLowerCase();
-    const fechaSeleccionada = fechaInput.value.trim();
-    if (!fechaSeleccionada) return alert("Selecciona una fecha válida");
-
-    const contenedor = document.getElementById("resultadoConsulta");
-    const tabla = document.getElementById("tablaDetalle");
-    const contador = document.getElementById("contadorTrabajos");
-    tabla.innerHTML = "";
-
-    try {
-      const res = await fetch(JSON_URL);
-      registros = await res.json();
-    } catch {
-      return alert("❌ Error al actualizar los datos antes de consultar.");
+    function resetForm() {
+      alerta.style.display = "none";
+      nombreInput.value = localStorage.getItem("miNombreGuardado") || "";
+      fechaInput.value = new Date().toISOString().split("T")[0];
+      nombreInput.disabled = false;
+      fechaInput.disabled = false;
+      btnActualizar.disabled = false;
     }
 
-    const resultados = registros.filter(r => {
-      const nombreRegistro = (r["Name"] || "").toLowerCase().trim();
-      const fechaRegistro = new Date(r["Date"]);
-      fechaRegistro.setMinutes(fechaRegistro.getMinutes() - fechaRegistro.getTimezoneOffset());
-      const fechaNormalizada = fechaRegistro.toISOString().split("T")[0];
-      return nombreRegistro === nombre && fechaNormalizada === fechaSeleccionada;
-    });
-
-    if (resultados.length) {
-      resultados.forEach(r => {
-        const row = document.createElement("tr");
-        row.innerHTML = `<td>${r["Name"]}</td><td>${r["Address"]}</td><td>${r["Date"]}</td>`;
-        tabla.appendChild(row);
+    buscar.addEventListener("input", () => {
+      const q = buscar.value.toLowerCase();
+      sugerencias.innerHTML = "";
+      resetForm();
+      if (!q) return sugerencias.style.display = "none";
+      const filtradas = direcciones.filter(d => d.toLowerCase().includes(q));
+      filtradas.forEach(d => {
+        const div = document.createElement("div");
+        div.textContent = d;
+        div.onclick = () => seleccionarDireccion(d);
+        sugerencias.appendChild(div);
       });
-      contador.textContent = resultados.length;
-      contenedor.style.display = "block";
-    } else {
-      contenedor.style.display = "none";
-      alert("No hay registros para hoy");
+      sugerencias.style.display = filtradas.length ? "block" : "none";
+    });
+
+    function seleccionarDireccion(dir) {
+      buscar.value = dir;
+      hiddenDireccion.value = dir;
+      sugerencias.style.display = "none";
+      const reg = registros.find(r => r["Address"] === dir);
+      const hoy = new Date().toISOString().split("T")[0];
+
+      if (reg) {
+        nombreInput.value = reg["Name"] || localStorage.getItem("miNombreGuardado") || "";
+        // No cambies el año aquí, si ya viene en formato YYYY-MM-DD
+        if (reg["Date"] && /^\d{4}-\d{2}-\d{2}$/.test(reg["Date"])) {
+          fechaInput.value = reg["Date"];
+        } else {
+          fechaInput.value = hoy;
+        }
+
+        if (reg["Name"] && reg["Date"]) {
+          alerta.style.display = "block";
+          nombreAlerta.textContent = reg["Name"];
+          nombreInput.disabled = true;
+          fechaInput.disabled = true;
+          btnActualizar.disabled = true;
+        } else {
+          alerta.style.display = "none";
+          nombreInput.disabled = false;
+          fechaInput.disabled = false;
+          btnActualizar.disabled = false;
+        }
+      }
     }
-  });
 
-  function mostrarDetalle() {
-    document.getElementById("detalleResultados").style.display = "block";
-  }
+    document.getElementById("copiar").onclick = () => {
+      if (!buscar.value) return alert("Escribe una dirección");
+      navigator.clipboard.writeText(buscar.value).then(() => alert("Dirección copiada ✅"));
+    };
 
-  document.addEventListener("DOMContentLoaded", async () => {
-    const nombreGuardado = localStorage.getItem("miNombreGuardado");
-    if (nombreGuardado) nombreInput.value = nombreGuardado;
-    fechaInput.value = obtenerFechaLocal();
-    await cargarHoja();
-  });
-</script>
+    document.getElementById("limpiar").onclick = () => {
+      buscar.value = "";
+      hiddenDireccion.value = "";
+      resetForm();
+      buscar.focus();
+    };
 
+    document.getElementById("recargar").onclick = cargarHoja;
 
-  
+    nombreInput.addEventListener("input", () => {
+      let valor = nombreInput.value.trimStart();
+      if (valor.length > 0) valor = valor.charAt(0).toUpperCase() + valor.slice(1);
+      nombreInput.value = valor.replace(/\s+$/, "");
+    });
+
+    nombreInput.addEventListener("blur", () => {
+      const nombre = nombreInput.value.trim();
+      if (nombre) localStorage.setItem("miNombreGuardado", nombre);
+    });
+
+    document.getElementById("formulario").addEventListener("submit", async e => {
+      e.preventDefault();
+      const dir = buscar.value.trim();
+      const nombre = nombreInput.value.trim();
+      const fecha = fechaInput.value;
+      if (!dir || !nombre || !fecha) return alert("⚠️ Debes completar todos los campos.");
+
+      try {
+        spinner.style.display = "block";
+        const resVerif = await fetch(JSON_URL);
+        registros = await resVerif.json();
+        const yaExiste = registros.find(r => r["Address"] === dir && r["Name"] && r["Date"]);
+        if (yaExiste) {
+          spinner.style.display = "none";
+          return alert("❌ Esta dirección ya fue registrada por " + yaExiste["Name"]);
+        }
+
+        const datos = new FormData();
+        datos.append("Address", dir);
+        datos.append("Name", nombre);
+        datos.append("Date", fecha);
+
+        const res = await fetch(POST_URL, { method: "POST", body: datos });
+        if (!res.ok) throw new Error("Error al guardar");
+
+        alert("✅ Información guardada correctamente");
+        await cargarHoja();
+        document.getElementById("limpiar").click();
+      } catch (err) {
+        alert("❌ " + (err.message || "Error de red"));
+      } finally {
+        spinner.style.display = "none";
+      }
+    });
+
+    document.getElementById("btnConsultar").addEventListener("click", async () => {
+      const nombre = nombreInput.value.trim().toLowerCase();
+      const fechaSeleccionada = fechaInput.value.trim(); // formato YYYY-MM-DD
+      if (!fechaSeleccionada) return alert("Selecciona una fecha válida");
+
+      const contenedor = document.getElementById("resultadoConsulta");
+      const tabla = document.getElementById("tablaDetalle");
+      const contador = document.getElementById("contadorTrabajos");
+      tabla.innerHTML = "";
+
+      try {
+        const res = await fetch(JSON_URL);
+        registros = await res.json();
+      } catch {
+        return alert("❌ Error al actualizar los datos antes de consultar.");
+      }
+
+      const resultados = registros.filter(r => {
+        const nombreRegistro = (r["Name"] || "").toLowerCase().trim();
+        // Comparar siempre usando el formato exacto YYYY-MM-DD
+        return nombreRegistro === nombre && (r["Date"] === fechaSeleccionada);
+      });
+
+      if (resultados.length) {
+        resultados.forEach(r => {
+          const row = document.createElement("tr");
+          row.innerHTML = `<td>${r["Name"]}</td><td>${r["Address"]}</td><td>${r["Date"]}</td>`;
+          tabla.appendChild(row);
+        });
+        contador.textContent = resultados.length;
+        contenedor.style.display = "block";
+      } else {
+        contenedor.style.display = "none";
+        alert("No hay registros para hoy");
+      }
+    });
+
+    function mostrarDetalle() {
+      document.getElementById("detalleResultados").style.display = "block";
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const nombreGuardado = localStorage.getItem("miNombreGuardado");
+      if (nombreGuardado) nombreInput.value = nombreGuardado;
+      fechaInput.value = new Date().toISOString().split("T")[0];
+      await cargarHoja();
+    });
+  </script>
 </body>
 </html>
