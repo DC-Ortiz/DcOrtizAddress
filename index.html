@@ -100,7 +100,7 @@
     function resetForm() {
       alerta.style.display = "none";
       nombreInput.value = localStorage.getItem("miNombreGuardado") || "";
-      fechaInput.value = new Date().toISOString().split("T")[0];
+      fechaInput.value = getTexasTodayDate();
       nombreInput.disabled = false;
       fechaInput.disabled = false;
       btnActualizar.disabled = false;
@@ -127,12 +127,12 @@
       hiddenDireccion.value = dir;
       sugerencias.style.display = "none";
       const reg = registros.find(r => r["Address"] === dir);
-      const hoy = new Date().toISOString().split("T")[0];
+      const hoy = getTexasTodayDate();
 
       if (reg) {
         nombreInput.value = reg["Name"] || localStorage.getItem("miNombreGuardado") || "";
-        // Fecha siempre convertida a Texas
-        fechaInput.value = toTexasDateString(reg["Date"]) || hoy;
+        // IMPORTANTE: usar función especial para input date en Texas
+        fechaInput.value = toTexasDateStringForInput(reg["Date"]) || hoy;
 
         if (reg["Name"] && reg["Date"]) {
           alerta.style.display = "block";
@@ -174,29 +174,34 @@
       if (nombre) localStorage.setItem("miNombreGuardado", nombre);
     });
 
-    // Función: normaliza y convierte cualquier fecha a YYYY-MM-DD en hora de Texas (-06:00)
+    // Convierte cualquier fecha a "YYYY-MM-DD" en hora de Texas (UTC-6), útil para comparar y filtrar
     function toTexasDateString(fechaStr) {
       if (!fechaStr) return null;
-      // Intenta con formato ISO (2025-08-02T00:00:00-06:00)
       let fecha = new Date(fechaStr);
-      if (isNaN(fecha)) {
-        // Si no, intenta forzar formatos tipo "MM/DD/YYYY"
-        const partes = fechaStr.split(/[\/\-]/);
-        if (partes.length === 3) {
-          // Si año es el primero: "YYYY-MM-DD"
-          if (partes[0].length === 4) fecha = new Date(`${partes[0]}-${partes[1].padStart(2, "0")}-${partes[2].padStart(2, "0")}`);
-          // Si año es el último: "DD/MM/YYYY" o "MM/DD/YYYY"
-          else fecha = new Date(`${partes[2]}-${partes[0].padStart(2, "0")}-${partes[1].padStart(2, "0")}`);
-        }
-      }
       if (isNaN(fecha)) return null;
-
-      // Convertir a UTC, luego a hora de Texas (UTC-6)
-      // (la fecha local menos la diferencia horaria del browser, más la diferencia hasta Texas)
+      // UTC de la fecha
       const utc = fecha.getTime() + fecha.getTimezoneOffset() * 60000;
-      const texasOffset = -6 * 60; // minutos
-      const texasDate = new Date(utc + texasOffset * 60000);
-      return texasDate.toISOString().split("T")[0];
+      const texas = new Date(utc + (-6 * 60 * 60000));
+      return texas.toISOString().split('T')[0];
+    }
+
+    // Para poner la fecha exacta de Texas en el input date (YYYY-MM-DD)
+    function toTexasDateStringForInput(fechaStr) {
+      if (!fechaStr) return "";
+      let fecha = new Date(fechaStr);
+      if (isNaN(fecha)) return "";
+      // UTC de la fecha
+      const utc = fecha.getTime() + fecha.getTimezoneOffset() * 60000;
+      const texas = new Date(utc + (-6 * 60 * 60000));
+      return texas.toISOString().split('T')[0];
+    }
+
+    // Hoy en Texas (YYYY-MM-DD)
+    function getTexasTodayDate() {
+      const now = new Date();
+      const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+      const texas = new Date(utc + (-6 * 60 * 60000));
+      return texas.toISOString().split('T')[0];
     }
 
     document.getElementById("formulario").addEventListener("submit", async e => {
@@ -211,7 +216,7 @@
         const resVerif = await fetch(JSON_URL);
         registros = await resVerif.json();
 
-        // OJO: compara fecha en TEXAS!
+        // Comparación de fechas en Texas (para evitar duplicados)
         const yaExiste = registros.find(r =>
           r["Address"] === dir &&
           r["Name"] &&
@@ -269,7 +274,7 @@
       if (resultados.length) {
         resultados.forEach(r => {
           const row = document.createElement("tr");
-          row.innerHTML = `<td>${r["Name"]}</td><td>${r["Address"]}</td><td>${toTexasDateString(r["Date"])}</td>`;
+          row.innerHTML = `<td>${r["Name"]}</td><td>${r["Address"]}</td><td>${toTexasDateStringForInput(r["Date"])}</td>`;
           tabla.appendChild(row);
         });
         contador.textContent = resultados.length;
@@ -287,7 +292,7 @@
     document.addEventListener("DOMContentLoaded", async () => {
       const nombreGuardado = localStorage.getItem("miNombreGuardado");
       if (nombreGuardado) nombreInput.value = nombreGuardado;
-      fechaInput.value = new Date().toISOString().split("T")[0];
+      fechaInput.value = getTexasTodayDate();
       await cargarHoja();
     });
   </script>
