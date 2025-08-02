@@ -131,7 +131,6 @@
 
       if (reg) {
         nombreInput.value = reg["Name"] || localStorage.getItem("miNombreGuardado") || "";
-        // IMPORTANTE: usar función especial para input date en Texas
         fechaInput.value = toTexasDateStringForInput(reg["Date"]) || hoy;
 
         if (reg["Name"] && reg["Date"]) {
@@ -174,15 +173,12 @@
       if (nombre) localStorage.setItem("miNombreGuardado", nombre);
     });
 
-    // Convierte cualquier fecha a "YYYY-MM-DD" en hora de Texas (UTC-6), útil para comparar y filtrar
-    function toTexasDateString(fechaStr) {
-      if (!fechaStr) return null;
-      let fecha = new Date(fechaStr);
-      if (isNaN(fecha)) return null;
-      // UTC de la fecha
-      const utc = fecha.getTime() + fecha.getTimezoneOffset() * 60000;
-      const texas = new Date(utc + (-6 * 60 * 60000));
-      return texas.toISOString().split('T')[0];
+    // Devuelve la fecha de HOY en Texas (America/Chicago), considera DST
+    function getTexasTodayDate() {
+      const now = new Date();
+      // America/Chicago es Central Time con ajuste automático de horario de verano
+      const texasNow = new Date(now.toLocaleString("en-US", { timeZone: "America/Chicago" }));
+      return texasNow.toISOString().split('T')[0];
     }
 
     // Para poner la fecha exacta de Texas en el input date (YYYY-MM-DD)
@@ -190,18 +186,18 @@
       if (!fechaStr) return "";
       let fecha = new Date(fechaStr);
       if (isNaN(fecha)) return "";
-      // UTC de la fecha
-      const utc = fecha.getTime() + fecha.getTimezoneOffset() * 60000;
-      const texas = new Date(utc + (-6 * 60 * 60000));
-      return texas.toISOString().split('T')[0];
+      // Convierte a hora local de Texas
+      const texasDate = new Date(fecha.toLocaleString("en-US", { timeZone: "America/Chicago" }));
+      return texasDate.toISOString().split('T')[0];
     }
 
-    // Hoy en Texas (YYYY-MM-DD)
-    function getTexasTodayDate() {
-      const now = new Date();
-      const utc = now.getTime() + now.getTimezoneOffset() * 60000;
-      const texas = new Date(utc + (-6 * 60 * 60000));
-      return texas.toISOString().split('T')[0];
+    // Convierte cualquier fecha a "YYYY-MM-DD" en hora de Texas (para comparar)
+    function toTexasDateString(fechaStr) {
+      if (!fechaStr) return "";
+      let fecha = new Date(fechaStr);
+      if (isNaN(fecha)) return "";
+      const texasDate = new Date(fecha.toLocaleString("en-US", { timeZone: "America/Chicago" }));
+      return texasDate.toISOString().split('T')[0];
     }
 
     document.getElementById("formulario").addEventListener("submit", async e => {
